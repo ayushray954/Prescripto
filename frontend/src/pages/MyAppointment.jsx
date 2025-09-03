@@ -38,6 +38,23 @@ const MyAppointment = () => {
     }
   }
 
+  const appointmentStripe = async(appointmentId)=>{
+    try{
+      const resp = await axios.post(backendUrl+'/api/user/payment-stripe',{appointmentId},{headers:{token}});
+      if(resp.data.success){
+        const {session_url}  = resp.data
+        window.location.replace(session_url)
+      }
+      else{
+        toast.error(resp.data.error);
+      }
+    }
+    catch(error){
+      console.log(error);
+      toast.error(error.message);
+    }
+  }
+
   useEffect(() => {
     if (token) {
       getUserAppointment();
@@ -69,15 +86,13 @@ const MyAppointment = () => {
                     <p className="text-sm text-gray-500"><span className="font-medium">Date & Time:</span> {item.slotDate} | {item.slotTime}</p>
                   
                     <p className="text-sm text-gray-500"><span className="font-medium">Appointment Fee:</span> {currencySymbol}{item.amount}</p>
-                    <p className={`text-sm font-semibold ${item.isCompleted ? 'text-green-600' : 'text-yellow-600'}`}>
-                        Status: {item.isCompleted ? 'Completed' : 'Pending'}
-                    </p>
                   </div>
                 </div>
                 <div className="w-full md:w-1/5 flex flex-col gap-2 items-center md:items-end">
-                 {!item.cancelled && <button onClick={()=>cancelAppointment(item._id)} className="hover:bg-red-600 border border-gray-300 px-4 py-2 rounded-md text-sm w-full md:w-auto">Cancel appointment</button>} 
-                 {!item.cancelled &&  <button className="bg-primary text-white md:px-12 px-4 py-2 rounded-md text-sm w-full md:w-auto">Pay Online</button>}
-                 {item.cancelled && <button className="bg-red-600 text-white md:px-12 px-4 py-2 rounded-md text-sm w-full md:w-auto">Appointment Cancelled</button> }
+                 {!item.cancelled && item.payment && <button className='px-16 py-2 rounded-md text-sm w-full md:w-auto border-gray-300 text-stone-500 bg-indigo-50'>Paid</button>}
+                  {!item.cancelled && <button onClick={() => cancelAppointment(item._id)} className="hover:bg-red-600 border border-gray-300 px-4 py-2 rounded-md text-sm w-full md:w-auto">Cancel appointment</button>}
+                  {!item.cancelled && !item.payment && <button onClick={() => appointmentStripe(item._id)} className="bg-primary text-white md:px-12 px-4 py-2 rounded-md text-sm w-full md:w-auto">Pay Online</button>}
+                  {item.cancelled && <button className="bg-red-600 text-white md:px-12 px-4 py-2 rounded-md text-sm w-full md:w-auto">Appointment Cancelled</button>}
                 </div>
               </div>
             ))

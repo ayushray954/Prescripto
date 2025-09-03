@@ -6,7 +6,7 @@ const authAdmin = async(req,res,next)=>{
     try{
         const token = req.headers.token;
         if(!token){
-            return res.status(400).json({
+            return res.status(401).json({
                 success:false,
                 message:'Not Authorized login Again!'
             })

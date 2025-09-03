@@ -1,4 +1,6 @@
 const Doctor = require('../model/doctorModel');
+const Appointment = require('../model/appointmentModel')
+const User = require('../model/userModel')
 const validator = require('validator')
 const bcrypt = require('bcrypt')
 const cloudinary = require('cloudinary').v2;
@@ -16,8 +18,8 @@ const addDoctor = async (req, res) => {
                 message: "please fill the all detail"
             })
         }
-            console.log(req.body);
-            console.log(req.file);
+        console.log(req.body);
+        console.log(req.file);
         if (!validator.isEmail(email)) {
             return res.status(400).json({
                 success: false,
@@ -59,7 +61,7 @@ const addDoctor = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: 'doctor not created',
-            error : err.message
+            error: err.message
         })
     }
 }
@@ -69,7 +71,7 @@ const loginAdmin = async (req, res) => {
         const { email, password } = req.body;
 
         if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD) {
-            const token = jwt.sign({email}, process.env.SECRET_KEY, { expiresIn: '1d' })
+            const token = jwt.sign({ email }, process.env.SECRET_KEY, { expiresIn: '1d' })
 
             return res.status(200).json({
                 success: true,
@@ -93,23 +95,102 @@ const loginAdmin = async (req, res) => {
     }
 }
 
-const allDoctor = async (req,res)=>{
-   try{
-     const doctors = await Doctor.find({}).select('-password');
-     res.status(200).json({
-        success:true,
-        doctors
-     })
-   }
-   catch(err){
-     console.error("❌ Error in allDoctor:", err); 
-      return res.status(500).json({
-      success: false,
-      message: 'Something went wrong',
-      error: err.message,
-    })
-   }
+const allDoctor = async (req, res) => {
+    try {
+        const doctors = await Doctor.find({}).select('-password');
+        res.status(200).json({
+            success: true,
+            doctors
+        })
+    }
+    catch (err) {
+        console.error("❌ Error in allDoctor:", err);
+        return res.status(500).json({
+            success: false,
+            message: 'Something went wrong',
+            error: err.message,
+        })
+    }
 
 }
 
-module.exports = { addDoctor, loginAdmin, allDoctor };
+const allAppointment = async (req, res) => {
+    try {
+        const appointments = await Appointment.find({});
+        if (appointments) {
+            return res.status(200).json({
+                success: true,
+                appointments
+            })
+        }
+        else {
+            return res.json({
+                success: false,
+                message: 'Can not find appointments'
+            })
+        }
+    }
+    catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        })
+    }
+}
+
+const cancelAppointemnt = async (req, res) => {
+     try{
+            const {appointmentId} = req.body
+    
+            const appointmentData = await Appointment.findById(appointmentId);
+            await Appointment.findByIdAndUpdate(appointmentId, {cancelled:true});
+            // releasing doctor slot
+    
+            const {docId, slotDate, slotTime} = appointmentData;
+            const doctorData = await Doctor.findById(docId);
+            let slots_booked = doctorData.slots_booked
+    
+            slots_booked[slotDate] = slots_booked[slotDate].filter(e => e!== slotTime);
+    
+            await Doctor.findByIdAndUpdate(docId, {slots_booked})
+            res.json({
+                success:true,
+                message:'Appointment cancel'
+            })
+        }       
+        catch(error){
+              return res.json({
+                success: false,
+                message: error.message
+            })
+        }
+}
+
+const adminDashboard = async (req,res)=>{
+    try{
+        const doctors = await Doctor.find({});
+        const users = await User.find({});
+        const appointments = await Appointment.find({});
+
+        const dashData = {
+            doctors:doctors.length,
+            patient:users.length,
+            appointments:appointments.length,
+            latestAppointment:appointments.reverse().slice(0,5)
+        }
+
+        return res.status(200).json({
+            success:true,
+            dashData
+        })
+
+    }
+    catch(error){
+        return res.json({
+                success: false,
+                message: error.message
+            })
+    }
+}
+
+module.exports = { addDoctor, loginAdmin, allDoctor, allAppointment, cancelAppointemnt, adminDashboard};

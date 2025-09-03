@@ -59,7 +59,7 @@ const NavBar = () => {
                         <img
                             onClick={() => { setProfileOpen(!profileOpen); setMenuOpen(false) }}
                             className="w-8 h-8 rounded-full cursor-pointer"
-                            src={assets.profile_pic}
+                            src={userData.image}
                         />
                     ) : (
                         <button
