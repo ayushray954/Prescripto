@@ -22,7 +22,7 @@ const Login = () => {
           setToken(resp.data.token);
         }
         else {
-          toast.error(resp.data.error);
+          toast.error(resp.data.message);
         }
       }
       else{
@@ -32,7 +32,7 @@ const Login = () => {
           setToken(resp.data.token);
         }
         else {
-          toast.error(resp.data.error);
+          toast.error(resp.data.message);
         }
       }
     }

@@ -14,8 +14,8 @@ const TopDoctors = () => {
         {doctors.slice(0,10).map((item , idx)=>(
              <div onClick={()=>navigate(`/appointment/${item._id}`)}className='border border-blue-200 bg-white overflow-hidden hover:scale-105 transition rounded-sm'key={item._id}>
                 <img className='bg-blue-50'src={item.image}/>
-                <div className='flex flex-row items-center gap-2 text-green-400 pl-2'>
-                    <p className='w-2 h-2 rounded-full bg-green-500'></p><p>Available</p>
+                <div className={`flex flex-row items-center gap-2 ${item.available ? 'text-green-500': 'text-gray-500'} pl-2`}>
+                    <p className={`w-2 h-2 rounded-full ${item.available ? 'bg-green-500' : 'bg-gray-500' }`}></p><p>{item.available ? 'Available': 'Not Available'}</p>
                 </div>
                 <div className='pl-2'>
                     <h1 className='text-xl font-semibold'>{item.name}</h1>

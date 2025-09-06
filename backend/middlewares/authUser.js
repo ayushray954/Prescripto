@@ -5,6 +5,7 @@ require('dotenv').config();
 const authUser = async(req,res,next)=>{
     try{
         const token = req.headers.token;
+        console.log('headers',req.headers)
         if(!token){
             return res.status(401).json({
                 success:false,

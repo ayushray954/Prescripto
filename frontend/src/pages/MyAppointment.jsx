@@ -1,7 +1,10 @@
-import React, { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { AppContex } from '../context/AppContext';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import { loadStripe } from "@stripe/stripe-js";
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 const MyAppointment = () => {
   const {backendUrl, token, currencySymbol } = useContext(AppContex);
@@ -37,17 +40,16 @@ const MyAppointment = () => {
       toast.error(error.message)
     }
   }
-
   const appointmentStripe = async(appointmentId)=>{
+    console.log("Sending appointmentId to backend:", appointmentId); 
     try{
-      const resp = await axios.post(backendUrl+'/api/user/payment-stripe',{appointmentId},{headers:{token}});
-      if(resp.data.success){
-        const {session_url}  = resp.data
-        window.location.replace(session_url)
-      }
-      else{
-        toast.error(resp.data.error);
-      }
+      const resp = await axios.post(backendUrl+'/api/user/payment-stripe', {appointmentId}, {headers:{token}});
+      if (resp.data.success) {
+      const stripe = await stripePromise;
+      await stripe.redirectToCheckout({ sessionId: resp.data.sessionId });
+    } else {
+      toast.error(resp.data.message || "Failed to create Stripe session.");
+    }
     }
     catch(error){
       console.log(error);
@@ -55,11 +57,19 @@ const MyAppointment = () => {
     }
   }
 
-  useEffect(() => {
-    if (token) {
+useEffect(() => {
+  if (token) {
+    getUserAppointment();
+  }
+
+  const sessionId = new URLSearchParams(window.location.search).get("session_id");
+  if (sessionId) {
+    setTimeout(() => {
       getUserAppointment();
-    }
-  }, [token]);
+    }, 3000); // Give webhook time to update DB
+  }
+}, [token]);
+
 
   return (
     <div className="px-4 py-8 md:px-20">
@@ -70,8 +80,10 @@ const MyAppointment = () => {
             appointments.map((item, index) => (
               <div key={index} className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 border rounded-lg shadow-sm">
                 <div className="w-full md:w-1/5 flex justify-center">
+                {console.log(item._id)}
                   <img src={item.docData.image} alt={item.docData.name} className="w-36 h-36 rounded-md object-cover bg-indigo-50" />
                 </div>
+              
                 <div className="w-full md:w-3/5 flex flex-col gap-2 text-center md:text-left">
                   <div>
                     <p className="text-lg font-semibold">{item.docData.name}</p>
@@ -89,10 +101,11 @@ const MyAppointment = () => {
                   </div>
                 </div>
                 <div className="w-full md:w-1/5 flex flex-col gap-2 items-center md:items-end">
-                 {!item.cancelled && item.payment && <button className='px-16 py-2 rounded-md text-sm w-full md:w-auto border-gray-300 text-stone-500 bg-indigo-50'>Paid</button>}
-                  {!item.cancelled && <button onClick={() => cancelAppointment(item._id)} className="hover:bg-red-600 border border-gray-300 px-4 py-2 rounded-md text-sm w-full md:w-auto">Cancel appointment</button>}
-                  {!item.cancelled && !item.payment && <button onClick={() => appointmentStripe(item._id)} className="bg-primary text-white md:px-12 px-4 py-2 rounded-md text-sm w-full md:w-auto">Pay Online</button>}
-                  {item.cancelled && <button className="bg-red-600 text-white md:px-12 px-4 py-2 rounded-md text-sm w-full md:w-auto">Appointment Cancelled</button>}
+                 {!item.cancelled && item.payment && !item.isCompleted && <button className='px-16 py-2 rounded-md text-sm w-full md:w-auto border-gray-300 text-stone-500 bg-indigo-50'>Paid</button>}
+                  {!item.cancelled && !item.isCompleted && <button onClick={() => cancelAppointment(item._id)} className="hover:bg-red-600 border border-gray-300 px-4 py-2 rounded-md text-sm w-full md:w-auto">Cancel appointment</button>}
+                  {!item.cancelled && !item.payment && !item.isCompleted && <button onClick={() => appointmentStripe(item._id)} className="bg-primary text-white md:px-12 px-4 py-2 rounded-md text-sm w-full md:w-auto">Pay Online</button>}
+                  {item.cancelled && !item.isCompleted && <button className="bg-red-600 text-white md:px-12 px-4 py-2 rounded-md text-sm w-full md:w-auto">Appointment Cancelled</button>}
+                  {item.isCompleted && <button className='md:min-w-48 py-2 border border-green-500 rounded text-green-500'>Completed</button>}
                 </div>
               </div>
             ))

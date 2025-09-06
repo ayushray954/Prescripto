@@ -17,6 +17,15 @@ const registerUser = async (req, res) => {
     try {
         const { name, email, password } = req.body;
 
+        const exitsUser = await User.findOne({email});
+        if(exitsUser){
+            
+            return res.json({
+                success:false,
+                message:'User already exits'
+            })
+        }
+
         if (!email || !name || !password) {
             return res.status(400).json({
                 success: false,
@@ -230,6 +239,7 @@ const cancelAppointment = async (req,res)=>{
     try{
         const userId = req.userId;
         const {appointmentId} = req.body
+        console.log('cancel',appointmentId)
 
         const appointmentData = await Appointment.findById(appointmentId);
         if(appointmentData.userId !== userId){
@@ -262,84 +272,82 @@ const cancelAppointment = async (req,res)=>{
 }
 
 const placePayment = async (req, res) => {
-    try {
-        const { appointmentId } = req.body;
-        const appointmentData = await Appointment.findById(appointmentId);
+  try {
+    const { appointmentId } = req.body;
+    console.log('place',appointmentId);
+    const appointmentData = await Appointment.findById(appointmentId);
 
-        if (!appointmentData || appointmentData.cancelled) {
-            return res.json({ success: false, message: 'Appointment Cancelled or not found' });
-        }
-
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            mode: 'payment',
-            line_items: [
-                {
-                    price_data: {
-                        currency: process.env.CURRENCY,
-                        product_data: {
-                            name: `Appointment with ${appointmentData.docData.name}`,
-                        },
-                        unit_amount: appointmentData.amount * 100,
-                    },
-                    quantity: 1,
-                }
-            ],
-            success_url: 'http://localhost:5173/my-appointment',
-            cancel_url: `http://localhost:5173/appointment/${appointmentData.docId}`,
-            metadata: { appointmentId: appointmentId.toString()} // <-- added metadata for webhook
-        });
-
-        res.json({ success: true, session_url: session.url });
-
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ success: false, message: error.message });
+    if (!appointmentData || appointmentData.cancelled) {
+      return res.status(400).json({ success: false, message: "Appointment not found or cancelled" });
     }
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [{
+        price_data: {
+          currency: "usd",
+          product_data: { name: "Doctor Appointment" },
+          unit_amount: appointmentData.amount * 100,
+        },
+        quantity: 1,
+      }],
+      mode: "payment",
+      success_url: `${process.env.FRONTEND_URL}/my-appointment`,
+      cancel_url: `${process.env.FRONTEND_URL}/my-appointment`,
+      metadata: {
+        appointmentId: appointmentData._id.toString(),
+        userId: appointmentData.userId.toString(),
+      },
+    });
+
+    // Optional: store session ID for fallback
+    appointmentData.stripeSessionId = session.id;
+    await appointmentData.save();
+
+   res.json({ success: true, sessionId: session.id });
+  } catch (error) {
+    console.error("Stripe session error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
-webhookRouter.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
-    const sig = req.headers['stripe-signature'];
-    let event;
 
-    try {
-        event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-    } catch (err) {
-        console.log('Webhook signature verification failed.', err.message);
-        return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
 
-    if (event.type === 'checkout.session.completed') {
-        const session = event.data.object;
-        console.log('Webhook session metadata:', session.metadata);
-        const appointmentId = session.metadata?.appointmentId;
+const webhookHandler = async (req, res) => {
+  const sig = req.headers["stripe-signature"];
+  let event;
 
-        if (appointmentId) {
-            try {
-                
-                const updatedAppointment = await Appointment.findByIdAndUpdate(
-                    appointmentId,
-                    { payment: true },
-                    { new: true }      // Return the updated document
-                );
-                
-                if (updatedAppointment) {
-                    console.log(`Appointment ${appointmentId} payment status updated successfully.`);
-                } else {
-                    console.log(`Appointment with ID ${appointmentId} not found.`);
-                }
-            } catch (error) {
-                console.error("Error updating appointment payment status:", error);
-                return res.status(500).json({ error: "Failed to update appointment." });
-            }
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error("Webhook verification failed:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object;
+    const appointmentId = session.metadata?.appointmentId;
+
+    console.log("Webhook received for appointment:", appointmentId);
+
+    if (appointmentId) {
+      try {
+        const appointment = await Appointment.findById(appointmentId);
+        if (appointment && !appointment.payment) {
+          appointment.payment = true;
+          await appointment.save();
+          console.log(`✅ Payment marked for appointment ${appointmentId}`);
+        } else {
+          console.log(`ℹ️ Appointment already marked as paid or not found`);
         }
+      } catch (err) {
+        console.error("Failed to update appointment payment:", err.message);
+      }
+    } else {
+      console.warn("⚠️ No appointmentId found in metadata");
     }
+  }
 
-   
-    res.json({ received: true });
-});
+  res.json({ received: true });
+};
 
-
-
-
-
-module.exports = { registerUser, loginUser, getProfile, updateProfile, bookAppointment, listAppointment, cancelAppointment, placePayment, webhookRouter };
+module.exports = { registerUser, loginUser, getProfile, updateProfile, bookAppointment, listAppointment, cancelAppointment, placePayment, webhookHandler }

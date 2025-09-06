@@ -62,10 +62,12 @@ const Dashboard = () => {
                 </div>
                 {
                   item.cancelled ?
-                    <p className="text-red-500">Cancelled</p> :
-                    <button onClick={() => cancelAppointment(item._id)} className="text-red-500 hover:text-red-700 font-bold text-lg ml-10">
-                      <img src={assets.cancel_icon} />
-                    </button>
+                    <p className="text-red-500">Cancelled</p>
+                    : item.isCompleted
+                      ? <p className="text-green-500">Completed</p> :
+                      <button onClick={() => cancelAppointment(item._id)} className="text-red-500 hover:text-red-700 font-bold text-lg ml-10">
+                        <img src={assets.cancel_icon} />
+                      </button>
                 }
               </div>
             ))
